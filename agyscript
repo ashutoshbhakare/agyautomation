@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# configure-hpa.sh
+# Non-interactively configures a Horizontal Pod Autoscaler on a GKE deployment
+# using Antigravity CLI. Designed to run unattended in CI (Cloud Build, GitHub
+# Actions, etc.) — no approval prompts, no interactive session.
+
+set -euo pipefail
+
+# ---- Config (override via env vars or CI variables) ------------------------
+PROJECT_ID="${PROJECT_ID:?Set PROJECT_ID}"
+CLUSTER_NAME="${CLUSTER_NAME:?Set CLUSTER_NAME}"
+REGION="${REGION:-us-central1}"
+NAMESPACE="${NAMESPACE:-production}"
+DEPLOYMENT="${DEPLOYMENT:?Set DEPLOYMENT}"
+MIN_REPLICAS="${MIN_REPLICAS:-2}"
+MAX_REPLICAS="${MAX_REPLICAS:-10}"
+CPU_TARGET_PERCENT="${CPU_TARGET_PERCENT:-70}"
+
+echo "==> Authenticating kubectl against ${CLUSTER_NAME} (${REGION})"
+gcloud container clusters get-credentials "${CLUSTER_NAME}" \
+  --region "${REGION}" \
+  --project "${PROJECT_ID}"
+
+echo "==> Verifying deployment exists before handing off to the agent"
+kubectl get deployment "${DEPLOYMENT}" -n "${NAMESPACE}" >/dev/null
+
+echo "==> Asking Antigravity CLI to configure the HPA (non-interactive)"
+agy -p "On the GKE cluster ${CLUSTER_NAME} in project ${PROJECT_ID}, configure a \
+Horizontal Pod Autoscaler for the deployment '${DEPLOYMENT}' in the \
+'${NAMESPACE}' namespace. Set minReplicas=${MIN_REPLICAS}, \
+maxReplicas=${MAX_REPLICAS}, and target average CPU utilization of \
+${CPU_TARGET_PERCENT}%. Use 'kubectl autoscale' or apply an HPA manifest — \
+whichever is idempotent if the HPA already exists. Do not ask for \
+confirmation, just apply it and print the resulting HPA status." \
+  --model gemini-3.1-pro \
+  --permission-mode always-proceed
+
+echo "==> Confirming HPA is live"
+kubectl get hpa "${DEPLOYMENT}" -n "${NAMESPACE}"
