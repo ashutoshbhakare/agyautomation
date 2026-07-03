@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: hello-server
-          image: gcr.io/PROJECT_ID/hello-server:latest
+          image: docker.io/openshift/hello-openshift
           ports:
             - containerPort: 8080
           resources:
